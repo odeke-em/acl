@@ -16,6 +16,7 @@ package acl
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/odeke-em/acl/common"
@@ -36,9 +37,9 @@ type rulesMap map[scope.Scope]map[permission.Permission]struct{}
 
 type Acl struct {
 	rules rulesMap
-	ttl  int64
-	name string
-	uuid string
+	ttl   int64
+	name  string
+	uuid  string
 }
 
 func Stoa(s string) (aclV *Acl, err error) {
@@ -93,4 +94,42 @@ func Stoa(s string) (aclV *Acl, err error) {
 	}
 
 	return
+}
+
+func (a *Acl) String() string {
+	if a == nil {
+		return "[nil]"
+	}
+
+	remapped := make(map[string]string)
+
+	keys := []string{}
+	for sscope, permissionMap := range a.rules {
+		scopeStr := sscope.String()
+
+		permRemap := []string{}
+		for perm, _ := range permissionMap {
+			permRemap = append(permRemap, perm.String())
+		}
+
+		sort.Sort(sort.StringSlice(permRemap))
+
+		remapped[scopeStr] = strings.Join(permRemap, permission.Separator)
+		keys = append(keys, scopeStr)
+	}
+
+	sort.Sort(sort.StringSlice(keys))
+
+	all := []string{}
+	for _, key := range keys {
+		retr, _ := remapped[key]
+
+		repr := key
+		if len(retr) >= 1 {
+			repr = fmt.Sprintf("%s%s%s", repr, permissionDelimiter, retr)
+		}
+		all = append(all, repr)
+	}
+
+	return strings.Join(all, ruleSeparator)
 }

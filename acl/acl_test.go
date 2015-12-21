@@ -15,6 +15,7 @@
 package acl
 
 import (
+	"fmt"
 	"testing"
 )
 
@@ -58,6 +59,55 @@ func TestStoaValidValuesWithInvalidPermissions(t *testing.T) {
 
 		if ac == nil {
 			t.Errorf("expected a non-nil acl for %q", tc)
+		}
+	}
+}
+
+func TestACLString(t *testing.T) {
+	cases := []string{
+		"private-execute:organization:organization:public-read|write|execute|list",
+		"public-write|read|execute:private-execute:private:public",
+		"public:organization:private:group:group-execute|read|write",
+	}
+
+	for _, tc := range cases {
+		ac, err := Stoa(tc)
+		if err != nil {
+			t.Errorf("a non-nil err %v was returned for value %q", err, tc)
+		}
+
+		if ac == nil {
+			t.Errorf("a nil acl was returned for %q", tc)
+		}
+
+		if false {
+		      fmt.Printf("***\n%s\n***\n", ac)
+		}
+	}
+}
+
+func BenchmarkACLString(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		cases := []string{
+			"private-execute:organization:organization:public-read|write|execute|list",
+			"public-write|read|execute:private-execute:private:public",
+			"public:organization:private:group:group-execute|read|write",
+		}
+
+		for _, tc := range cases {
+			ac, err := Stoa(tc)
+			if err != nil {
+				b.Errorf("a non-nil err %v was returned for value %q", err, tc)
+			}
+
+			if ac == nil {
+				b.Errorf("a nil acl was returned for %q", tc)
+			}
+
+			aclStr := ac.String()
+			if len(aclStr) < 1 {
+				b.Errorf("given an acl %q got %q of length %v", tc, aclStr, len(aclStr))
+			}
 		}
 	}
 }
