@@ -17,6 +17,8 @@ package permission
 import (
 	"fmt"
 	"strings"
+
+	"github.com/odeke-em/acl/common"
 )
 
 type Permission uint64
@@ -50,8 +52,8 @@ var atopMap = func() (revMap map[string]Permission) {
 	return revMap
 }()
 
-// Ptoa returns the unit permission string representation
-func Ptoa(p Permission) string {
+// ptoa returns the unit permission string representation
+func ptoa(p Permission) string {
 	// Since no writes affect either the ptoaMap or
 	// atopMap, no need to lock any of them
 	repr, ok := ptoaMap[p]
@@ -69,18 +71,18 @@ func Atop(s string) (p Permission, err error) {
 	for _, str := range splits {
 		result, resolvErr := atop(str)
 		if resolvErr != nil {
-			err = reComposeError(err, resolvErr.Error())
+			err = common.ReComposeError(err, resolvErr.Error())
 		} else {
 			p |= result
 		}
 	}
 
-	return p, err
+	return
 }
 
 func (p Permission) String() string {
 	if p == None { // TODO: Sanity check enforcement to ensure None is always "0"
-		return Ptoa(p)
+		return ptoa(p)
 	}
 
 	sects := []string{}
@@ -91,7 +93,7 @@ func (p Permission) String() string {
 			continue
 		}
 		extracted := Permission(p & i)
-		sects = append(sects, Ptoa(extracted))
+		sects = append(sects, ptoa(extracted))
 	}
 
 	return strings.Join(sects, Separator)
@@ -147,16 +149,3 @@ func atop(s string) (Permission, error) {
 	return repr, nil
 }
 
-
-func reComposeError(e error, messages ...string) error {
-	if len(messages) < 1 {
-		return e
-	}
-
-	joined := strings.Join(messages, "\n")
-	if e != nil {
-		joined = fmt.Sprintf("%s\n%s", e.Error(), joined)
-	}
-
-	return fmt.Errorf(joined)
-}
