@@ -68,7 +68,11 @@ func ptoa(p Permission) string {
 // different representations of the word values
 func Atop(s string) (p Permission, err error) {
 	splits := strings.Split(s, Separator)
-	for _, str := range splits {
+	for _, strRaw := range splits {
+		str := strings.Trim(strRaw, " ")
+		if str == "" {
+			continue
+		}
 		result, resolvErr := atop(str)
 		if resolvErr != nil {
 			err = common.ReComposeError(err, resolvErr.Error())
@@ -100,9 +104,9 @@ func (p Permission) String() string {
 }
 
 type Permissioner struct {
-	Set   func(Permission) Permission
-	Unset func(Permission) Permission
-	WasSet    func(Permission) bool
+	Set    func(Permission) Permission
+	Unset  func(Permission) Permission
+	WasSet func(Permission) bool
 }
 
 func powerOfTwo(p Permission) bool {
@@ -148,4 +152,3 @@ func atop(s string) (Permission, error) {
 
 	return repr, nil
 }
-

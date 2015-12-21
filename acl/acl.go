@@ -68,6 +68,7 @@ func Stoa(s string) (aclV *Acl, err error) {
 			}
 
 			first, rest := scopePermissions[0], scopePermissions[1:]
+
 			scFromS, scErr := scope.Atos(first)
 			if scErr != nil {
 				err = common.ReComposeError(err, fmt.Sprintf("scopeStr: %q err: %s", first, scErr.Error()))
@@ -80,6 +81,10 @@ func Stoa(s string) (aclV *Acl, err error) {
 			}
 
 			for _, permStr := range rest {
+				permTrimmed := strings.Trim(permStr, " ")
+				if permTrimmed == "" {
+					continue
+				}
 				perm, permErr := permission.Atop(permStr)
 				if permErr != nil {
 					err = common.ReComposeError(err, fmt.Sprintf("permStr: %q err: %s", permStr, permErr.Error()))

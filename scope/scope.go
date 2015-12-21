@@ -35,7 +35,7 @@ const (
 	Organization
 )
 
-const unknownScopeScope = "unknownScope scnership"
+const unknownScopeStr = "unknownScope"
 
 var stoaMap = map[Scope]string{
 	Public:       "public",
@@ -59,7 +59,7 @@ var atosMap = func() (oom map[string]Scope) {
 func stoa(s Scope) string {
 	retr, ok := stoaMap[s]
 	if !ok {
-		return unknownScopeScope
+		return unknownScopeStr
 	}
 
 	return retr
@@ -75,11 +75,21 @@ func atos(s string) (Scope, error) {
 }
 
 func Atos(s string) (sc Scope, err error) {
-	splits := strings.Split(s, Separator)
-	for _, split := range splits {
+	trimmed := strings.Trim(s, " ")
+	if len(trimmed) < 1 {
+		return UnknownScope, fmt.Errorf("unknownScope for %v", s)
+	}
+
+	splits := strings.Split(trimmed, Separator)
+
+	for _, splitRaw := range splits {
 		// Expecting a format like:
 		//     "public:private:organization"
 		//     "private:user"
+		split := strings.Trim(splitRaw, " ")
+		if split == "" {
+			continue
+		}
 		result, resolvErr := atos(split)
 		if resolvErr != nil {
 			err = common.ReComposeError(err, resolvErr.Error())

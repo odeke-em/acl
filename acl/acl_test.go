@@ -24,9 +24,9 @@ func TestStoaValidValuesWithGrouping(t *testing.T) {
 		value    string
 		keyCount int
 	}{
-		{value: "private-execute:organization:organization", keyCount: 2},
-		{value: "public-write|read|execute:private-execute:private:public", keyCount: 2},
-		{value: "public:organization:private:group:group-execute|read|write", keyCount: 4},
+		{value: ":::private-execute:organization:organization", keyCount: 2},
+		{value: "public:::private-write|read|execute:private-execute||||||read:private:public-------------", keyCount: 2},
+		{value: "public:organization:private:group:group-execute|read|write:::::::::::", keyCount: 4},
 	}
 
 	for _, tc := range cases {
@@ -40,7 +40,7 @@ func TestStoaValidValuesWithGrouping(t *testing.T) {
 		}
 
 		if kc := len(ac.rules); kc != tc.keyCount {
-			t.Errorf("expected a keyCount of %v, instead got %v", tc.keyCount, kc)
+			t.Errorf("%v expected a keyCount of %v, instead got %v", ac.rules, tc.keyCount, kc)
 		}
 	}
 }
@@ -48,7 +48,7 @@ func TestStoaValidValuesWithGrouping(t *testing.T) {
 func TestStoaValidValuesWithInvalidPermissions(t *testing.T) {
 	cases := []string{
 		"private-executex:organization-user:organization:user",
-		"public-w|r|x:private-exec:private:pub",
+		"public-w|r|x:private-exec:private-------------xm:pub",
 	}
 
 	for _, tc := range cases {
@@ -67,7 +67,7 @@ func TestACLString(t *testing.T) {
 	cases := []string{
 		"private-execute:organization:organization:public-read|write|execute|list",
 		"public-write|read|execute:private-execute:private:public",
-		"public:organization:private:group:group-execute|read|write",
+		"public:organization:private:group:group-execute|read|write:::::::::::::::",
 	}
 
 	for _, tc := range cases {
@@ -81,7 +81,7 @@ func TestACLString(t *testing.T) {
 		}
 
 		if false {
-		      fmt.Printf("***\n%s\n***\n", ac)
+			fmt.Printf("***\n%s\n***\n", ac)
 		}
 	}
 }
