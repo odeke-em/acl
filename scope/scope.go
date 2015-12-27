@@ -45,6 +45,10 @@ func atos(s string) (Scope, error) {
 	return Scope{value: s}, nil
 }
 
+func New(s string) (Scope, error) {
+  return Atos(s)
+}
+
 func Atos(s string) (sc Scope, err error) {
 	trimmed := strings.Trim(s, " ")
 	if len(trimmed) < 1 {

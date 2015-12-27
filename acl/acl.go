@@ -15,9 +15,11 @@
 package acl
 
 import (
+	"errors"
 	"fmt"
 	"sort"
 	"strings"
+	"sync"
 
 	"github.com/odeke-em/acl/common"
 	"github.com/odeke-em/acl/permission"
@@ -31,6 +33,12 @@ const (
 	permissionDelimiter = "-"
 )
 
+var (
+	ErrUserAlreadyExists = errors.New("user already exists")
+	ErrUserDoesnotExist  = errors.New("user does not exist")
+	ErrUninitializedACL  = errors.New("uninitialized ACL")
+)
+
 var emptyStruct = struct{}{}
 
 type rulesMap map[scope.Scope]map[permission.Permission]struct{}
@@ -40,12 +48,20 @@ type Acl struct {
 	ttl   int64
 	name  string
 	uuid  string
+	mu    sync.Mutex
+}
+
+func New(s string) (aclV *Acl, err error) {
+	return Stoa(s)
+}
+
+func newUUID() string {
+	return uuid.UUID4().String()
 }
 
 func Stoa(s string) (aclV *Acl, err error) {
 	aclV = &Acl{
 		rules: make(rulesMap),
-		uuid:  uuid.UUID4().String(),
 	}
 
 	rules := strings.Split(s, ruleSeparator)
@@ -137,4 +153,140 @@ func (a *Acl) String() string {
 	}
 
 	return strings.Join(all, ruleSeparator)
+}
+
+func (a *Acl) Remove(userId string, permissions ...permission.Permission) (pass, fail []permission.Permission, err error) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	// TODO: Potential caching for userId lookups and conversions
+	sc, scErr := scope.New(userId)
+	if scErr != nil {
+		err = scErr
+		return
+	}
+
+	permMap, ok := a.rules[sc]
+	if !ok {
+		err = fmt.Errorf("no such userId %q found", userId)
+		return
+	}
+
+	alreadyRemoved := map[permission.Permission]struct{}{}
+	for _, perm := range permissions {
+		ptr := &fail
+		if _, ok := permMap[perm]; ok {
+			delete(permMap, perm)
+			alreadyRemoved[perm] = emptyStruct
+			ptr = &pass
+		} else if _, ok := alreadyRemoved[perm]; ok {
+			ptr = &pass
+		}
+
+		*ptr = append(*ptr, perm)
+	}
+
+	return
+}
+
+func (a *Acl) RegisterUser(userId string) (err error) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	sc, scErr := scope.New(userId)
+	if scErr != nil {
+		err = scErr
+		return
+	}
+
+	if a.rules == nil {
+		a.rules = make(rulesMap)
+	}
+
+	if _, ok := a.rules[sc]; ok {
+		return ErrUserAlreadyExists
+	}
+
+	a.rules[sc] = make(map[permission.Permission]struct{})
+	return
+}
+
+func (a *Acl) DeRegisterUser(userId string) error {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	if a.rules == nil {
+		return ErrUninitializedACL
+	}
+
+	sc, scErr := scope.New(userId)
+	if scErr != nil {
+		return scErr
+	}
+
+	if _, ok := a.rules[sc]; !ok {
+		return ErrUserDoesnotExist
+	}
+
+	delete(a.rules, sc)
+	return nil
+}
+
+func (a *Acl) Insert(userId string, permissions ...permission.Permission) (added []permission.Permission, err error) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	sc, scErr := scope.New(userId)
+	if scErr != nil {
+		err = scErr
+		return
+	}
+
+	permMap, ok := a.rules[sc]
+	if !ok {
+		err = fmt.Errorf("no such userId %q found", userId)
+		return
+	}
+
+	for _, perm := range permissions {
+		if _, ok := permMap[perm]; !ok {
+			added = append(added, perm)
+			permMap[perm] = emptyStruct
+		}
+	}
+
+	return
+}
+
+func (a *Acl) Check(userId string, permissions ...permission.Permission) (wasSet, notSet []permission.Permission, err error) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	if a.rules == nil {
+		err = ErrUninitializedACL
+		return
+	}
+
+	sc, scErr := scope.New(userId)
+	if scErr != nil {
+		err = scErr
+		return
+	}
+
+	permMap, ok := a.rules[sc]
+	if !ok {
+		err = ErrUserDoesnotExist
+		return
+	}
+
+	for _, perm := range permissions {
+		ptr := &notSet
+		if _, ok := permMap[perm]; ok {
+			ptr = &wasSet
+		}
+
+		*ptr = append(*ptr, perm)
+	}
+
+	return
 }

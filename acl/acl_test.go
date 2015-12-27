@@ -17,6 +17,8 @@ package acl
 import (
 	"fmt"
 	"testing"
+
+	"github.com/odeke-em/acl/permission"
 )
 
 func TestStoaValidValuesWithGrouping(t *testing.T) {
@@ -111,6 +113,199 @@ func BenchmarkACLString(b *testing.B) {
 			if len(aclStr) < 1 {
 				b.Errorf("given an acl %q got %q of length %v", tc, aclStr, len(aclStr))
 			}
+		}
+	}
+}
+
+func nUUIDs(n int) []string {
+	uids := []string{}
+	for i := 0; i < n; i++ {
+		uids = append(uids, newUUID())
+	}
+	return uids
+}
+
+func TestRegisterUser(t *testing.T) {
+	uids := nUUIDs(6)
+
+	acl := Acl{}
+	for _, uid := range uids {
+		err := acl.RegisterUser(uid)
+		if err != nil {
+			t.Errorf("err %v for uid %q", err, uid)
+		}
+	}
+
+	// Round 2 of insertions
+	for _, uid := range uids {
+		err := acl.RegisterUser(uid)
+		if err == nil {
+			t.Errorf("prior insertion %v for uid %q", ErrUserAlreadyExists, uid)
+		}
+	}
+}
+
+func TestDeRegister(t *testing.T) {
+	n := 6
+	uids := nUUIDs(n)
+
+	acl := Acl{}
+	for i := 0; i < n; i++ {
+		for _, uid := range uids {
+			err := acl.DeRegisterUser(uid)
+			if err == nil {
+				t.Errorf("iter #%d uid %q expected a non-nil err", i, uid)
+			}
+		}
+	}
+}
+
+func TestRegisterDeRegisterForPlainACL(t *testing.T) {
+	n := 6
+	uids := nUUIDs(n)
+
+	acl := Acl{}
+	for _, uid := range uids {
+		err := acl.DeRegisterUser(uid)
+		if err == nil {
+			t.Errorf("deRegister: uid %q expected a non-nil err", uid)
+		}
+
+		err = acl.RegisterUser(uid)
+		if err != nil {
+			t.Errorf("register uid %q expected success, got %v", uid, err)
+		}
+
+		err = acl.DeRegisterUser(uid)
+		if err != nil {
+			t.Errorf("deRegister uid %q expected success, got %v", uid, err)
+		}
+
+		err = acl.DeRegisterUser(uid)
+		if err == nil {
+			t.Errorf("second deRegister: uid %q expected failure", uid)
+		}
+	}
+}
+
+func TestRegisterDeRegisterForInitedACL(t *testing.T) {
+	n := 6
+	uids := nUUIDs(n)
+
+	acl, err := New("")
+	if err != nil {
+		t.Errorf("expected a successful acl.New(...), got %v", err)
+	}
+
+	for _, uid := range uids {
+		err := acl.DeRegisterUser(uid)
+		if err == nil {
+			t.Errorf("deRegister: uid %q expected a non-nil err", uid)
+		}
+
+		err = acl.RegisterUser(uid)
+		if err != nil {
+			t.Errorf("register uid %q expected success, got %v", uid, err)
+		}
+
+		err = acl.DeRegisterUser(uid)
+		if err != nil {
+			t.Errorf("deRegister uid %q expected success, got %v", uid, err)
+		}
+
+		err = acl.DeRegisterUser(uid)
+		if err == nil {
+			t.Errorf("second deRegister: uid %q expected failure", uid)
+		}
+	}
+}
+
+func TestInsertAndRemovePermissions(t *testing.T) {
+	acl := Acl{}
+
+	uid := "pronto"
+	perms := []permission.Permission{
+		permission.Read, permission.Write, permission.Delete,
+	}
+	_, err := acl.Insert(uid, perms...)
+	if err == nil {
+		t.Errorf("did not pre-register user %q", uid)
+	}
+
+	_, _, err = acl.Remove(uid, perms...)
+	if err == nil {
+		t.Errorf("did not pre-register user %q", uid)
+	}
+
+	if err := acl.RegisterUser(uid); err != nil {
+		t.Errorf("expected success registering user %q, instead got %v", uid, err)
+	}
+
+	inserted, iErr := acl.Insert(uid, perms...)
+	if iErr != nil {
+		t.Errorf("should have successfully inserted user %q got %v", uid, err)
+	}
+
+	if il, pl := len(inserted), len(perms); il != pl {
+		t.Errorf("insertedLength (%d) != permissionsLength (%d)", il, pl)
+	}
+
+	_, _, err = acl.Remove(uid, perms...)
+	if err != nil {
+		t.Errorf("err: %v expected successful remova for user %q perms %s", err, uid, perms)
+	}
+}
+
+func TestCheckUninitialized(t *testing.T) {
+	acl := Acl{}
+	uid := "ingredient"
+	perms := []permission.Permission{
+		permission.Delete, permission.Write,
+	}
+
+	for i := 0; i < 10; i++ {
+		_, _, err := acl.Check(uid, perms...)
+		if err == nil {
+			t.Errorf("#%d check: %s did not expect success with perms %v", i, uid, perms)
+		}
+	}
+}
+
+func TestCheck(t *testing.T) {
+	acl := Acl{}
+	uid := "ingredient"
+	perms := []permission.Permission{
+		permission.Delete, permission.Write,
+	}
+	notSetPerm := permission.Read
+
+	if err := acl.RegisterUser(uid); err != nil {
+		t.Errorf("%s expected success got %v", uid, err)
+	}
+
+	inserted, err := acl.Insert(uid, perms...)
+	if err != nil {
+		t.Errorf("insertion of %v expected success got %v", perms, err)
+	}
+
+	if il, pl := len(inserted), len(perms); il != pl {
+		t.Errorf("insertedLen: %d permissions %d", il, pl)
+	}
+
+	allChecked := append(perms[:], notSetPerm)
+
+	for i := 0; i < 10; i++ {
+		wasSet, notSet, err := acl.Check(uid, allChecked...)
+		if err != nil {
+			t.Errorf("#%d check: %s expected no errors with perms %v, got %v", i, uid, perms, err)
+		}
+
+		if wl, pl := len(wasSet), len(perms); wl != pl {
+		    t.Errorf("wasSet(%v) != perms(%v)", wasSet, perms)
+		}
+
+		if nl := len(notSet); nl != 1 {
+		    t.Errorf("notSet(%v) len: %d expected 1", notSet, nl)
 		}
 	}
 }
