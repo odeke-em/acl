@@ -23,55 +23,26 @@ import (
 
 const Separator = ":"
 
-type Scope uint64
-
-const (
-	UnknownScope Scope = 0
-	Public       Scope = 1 << iota
-	Private
-	User
-	Group
-	Domain
-	Organization
-)
+type Scope struct {
+	value string
+}
 
 const unknownScopeStr = "unknownScope"
 
-var stoaMap = map[Scope]string{
-	Public:       "public",
-	Private:      "private",
-	User:         "user",
-	Group:        "group",
-	Domain:       "domain",
-	Organization: "organization",
-}
-
-var atosMap = func() (oom map[string]Scope) {
-	oom = make(map[string]Scope)
-
-	for k, v := range stoaMap {
-		oom[v] = k
-	}
-
-	return oom
-}()
+var UnknownScope = Scope{value: unknownScopeStr}
 
 func stoa(s Scope) string {
-	retr, ok := stoaMap[s]
-	if !ok {
-		return unknownScopeStr
-	}
-
-	return retr
+	return s.value
 }
 
 func atos(s string) (Scope, error) {
-	retr, ok := atosMap[s]
-	if !ok {
+	// TODO: Specify what values can be entered into a Scope
+	trimmed := strings.Trim(s, " ")
+	if len(trimmed) < 1 {
 		return UnknownScope, fmt.Errorf("unknownScope for %v", s)
 	}
 
-	return retr, nil
+	return Scope{value: s}, nil
 }
 
 func Atos(s string) (sc Scope, err error) {
@@ -86,6 +57,7 @@ func Atos(s string) (sc Scope, err error) {
 		// Expecting a format like:
 		//     "public:private:organization"
 		//     "private:user"
+		//     "118791237492:user"
 		split := strings.Trim(splitRaw, " ")
 		if split == "" {
 			continue
@@ -94,11 +66,21 @@ func Atos(s string) (sc Scope, err error) {
 		if resolvErr != nil {
 			err = common.ReComposeError(err, resolvErr.Error())
 		} else {
-			sc |= result
+			sc.Combine(result)
 		}
 	}
 
 	return
+}
+
+func (sc *Scope) Combine(other Scope) {
+	first, rest := sc.value, other.value
+	if first == "" {
+	  first = rest
+	} else if rest != "" {
+	  first =  fmt.Sprintf("%s%s%s", first, Separator, rest)
+	}
+	sc.value = first
 }
 
 func (sc Scope) String() string {
@@ -106,15 +88,5 @@ func (sc Scope) String() string {
 		return stoa(sc)
 	}
 
-	sects := []string{}
-	for si := Scope(1); si <= sc; si <<= 1 {
-		val := si & sc
-		if val == 0 {
-			continue
-		}
-
-		sects = append(sects, stoa(val))
-	}
-
-	return strings.Join(sects, Separator)
+	return sc.value
 }

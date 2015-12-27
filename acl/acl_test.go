@@ -27,6 +27,9 @@ func TestStoaValidValuesWithGrouping(t *testing.T) {
 		{value: ":::private-execute:organization:organization", keyCount: 2},
 		{value: "public:::private-write|read|execute:private-execute||||||read:private:public-------------", keyCount: 2},
 		{value: "public:organization:private:group:group-execute|read|write:::::::::::", keyCount: 4},
+		{value: "fd0389bf928e4fa4a70696ab85552f11:::private-write|read|execute:private-execute||||||read:private:public-------------", keyCount: 3},
+		{value: "exampleorg.com-execute:organization:organization", keyCount: 2},
+		{value: "11083811380-execute|read|write", keyCount: 1},
 	}
 
 	for _, tc := range cases {
@@ -40,7 +43,7 @@ func TestStoaValidValuesWithGrouping(t *testing.T) {
 		}
 
 		if kc := len(ac.rules); kc != tc.keyCount {
-			t.Errorf("%v expected a keyCount of %v, instead got %v", ac.rules, tc.keyCount, kc)
+			t.Errorf("%q %v expected a keyCount of %v, instead got %v", tc.value, ac.rules, tc.keyCount, kc)
 		}
 	}
 }
